@@ -992,7 +992,6 @@ static void touch_read_cb(lv_indev_drv_t *drv, lv_indev_data_t *data) {
 namespace display {
 
 bool begin() {
-    Serial.println("[display] init CO5300 QSPI...");
     s_bus = new Arduino_ESP32QSPI(PIN_LCD_CS, PIN_LCD_SCLK,
                                   PIN_LCD_D0, PIN_LCD_D1, PIN_LCD_D2, PIN_LCD_D3);
     #if defined(BOARD_SMARTRING_PLUS)

@@ -1311,7 +1311,7 @@ void ui_create(void) {
     lv_obj_set_style_border_width(s_offBtn, 1, 0);
     lv_obj_set_style_bg_color(s_offBtn, lv_color_hex(0xFF4D4D), LV_STATE_PRESSED);
     lv_obj_set_style_bg_opa(s_offBtn, 90, LV_STATE_PRESSED);
-    lv_obj_add_event_cb(s_offBtn, ui_set_poweroff_cb, LV_EVENT_ALL, NULL);
+    lv_obj_add_event_cb(s_offBtn, poweroff_restore_cb, LV_EVENT_ALL, NULL);
     lv_obj_add_flag(s_offBtn, LV_OBJ_FLAG_HIDDEN);
     s_offLbl = lv_label_create(s_offBtn);
     lv_label_set_text(s_offLbl, LV_SYMBOL_POWER " Hold to power off");

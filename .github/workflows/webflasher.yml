@@ -42,11 +42,7 @@ jobs:
 
       - name: Build firmware (all boards)
         run: |
-          pio run -e esp32-s3-amoled-175
-          pio run -e esp32-s3-amoled-143
-
-      - name: Host tests
-        run: ./tests/run_host_tests.sh
+          pio run -e esp32-s3-smartring-plus
 
       - name: Merge flashable binaries (all boards)
         run: |
@@ -64,9 +60,8 @@ jobs:
               0xe000  "$BOOT_APP0" \
               0x10000 ".pio/build/$1/firmware.bin"
           }
-          merge esp32-s3-amoled-175 site/CapsuleRadar-esp32s3.bin
-          merge esp32-s3-amoled-143 site/CapsuleRadar-esp32s3-amoled143.bin
-
+          merge esp32-s3-smartring-plus site/CapsuleRadar-esp32s3.bin
+          
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site

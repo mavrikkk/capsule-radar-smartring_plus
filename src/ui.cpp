@@ -229,17 +229,7 @@ static void refresh_card(void) {
     }
 } else {
     lv_obj_add_flag(s_photo, LV_OBJ_FLAG_HIDDEN);
-    if (photo_pending(in.hex)) {
-        lv_label_set_text(s_photoCredit, "Loading photo...");
-#if defined(BOARD_SMARTRING_PLUS)
-        lv_obj_align(s_photoCredit, LV_ALIGN_CENTER, 0, -76);
-#else
-        lv_obj_align(s_photoCredit, LV_ALIGN_CENTER, 0, -104);
-#endif
-        lv_obj_clear_flag(s_photoCredit, LV_OBJ_FLAG_HIDDEN);
-    } else {
-        lv_obj_add_flag(s_photoCredit, LV_OBJ_FLAG_HIDDEN);
-    }
+    lv_obj_add_flag(s_photoCredit, LV_OBJ_FLAG_HIDDEN);
 }
         }
 
@@ -1321,7 +1311,7 @@ void ui_create(void) {
     lv_obj_set_style_border_width(s_offBtn, 1, 0);
     lv_obj_set_style_bg_color(s_offBtn, lv_color_hex(0xFF4D4D), LV_STATE_PRESSED);
     lv_obj_set_style_bg_opa(s_offBtn, 90, LV_STATE_PRESSED);
-    lv_obj_add_event_cb(s_offBtn, off_btn_cb, LV_EVENT_ALL, NULL);
+    lv_obj_add_event_cb(s_offBtn, ui_set_poweroff_cb, LV_EVENT_ALL, NULL);
     lv_obj_add_flag(s_offBtn, LV_OBJ_FLAG_HIDDEN);
     s_offLbl = lv_label_create(s_offBtn);
     lv_label_set_text(s_offLbl, LV_SYMBOL_POWER " Hold to power off");

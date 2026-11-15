@@ -24,7 +24,11 @@
 // Typed as Arduino_CO5300* (not Arduino_GFX*) so setBrightness() — declared on
 // Arduino_OLED, not the GFX base — is reachable.
 static Arduino_DataBus *s_bus = nullptr;
-static Arduino_CO5300  *s_gfx = nullptr;
+#if defined(BOARD_SMARTRING_PLUS)
+static Arduino_ST77916 *s_gfx = nullptr;
+#else
+static Arduino_CO5300 *s_gfx = nullptr;
+#endif
 
 // --- LVGL plumbing -----------------------------------------------------------
 #define LVGL_BUF_LINES 40    // partial draw-buffer height (lines); kept in fast internal RAM
@@ -791,7 +795,7 @@ bool begin() {
         return false;
     }
     s_gfx->fillScreen(RGB565_BLACK);
-    s_gfx->setBrightness(BRIGHTNESS_DEFAULT);
+    s_gfx->(BRIGHTNESS_DEFAULT);
     Serial.println("[display] panel up; init LVGL...");
 
     lv_init();
@@ -874,8 +878,12 @@ bool sweepAvailable() { return sweep_ready(); }
 float sweepAngleDeg() { return (float)(s_swPhase >> 8) * (360.0f / (float)ANG_UNITS); }
 
 void setBrightness(uint8_t v) {
-    if (s_gfx) s_gfx->setBrightness(v);
-    s_touchQ.setWakeOnly(v == 0);   // a dark panel takes a touch only as a wake-up
+#if defined(BOARD_SMARTRING_PLUS)
+  ledcWrite(PIN_LCD_BL, v);
+#else
+  if (s_gfx) s_gfx->setBrightness(v);
+#endif
+  s_touchQ.setWakeOnly(v == 0);
 }
 
 void setRotation(uint16_t degrees) {

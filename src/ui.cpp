@@ -242,8 +242,6 @@ static void refresh_card(void) {
     }
 }
         }
-    }
-}
 
 // --------------------------------------------------------------------- input
 static bool s_themeHeld = false;   // this press reached the theme hold: its lift is not a tap
@@ -789,7 +787,7 @@ static void build_weather(void) {
         s_weatherMode == WEATHER_RADAR ? "WX RADAR" :
         s_weatherMode == WEATHER_CLOUDS ? "SAT CLOUDS" : "WEATHER");
 }
-
+}
 // Registered once, on the whole weather panel (see ui_create) -- the mode pill and the
 // image are deliberately non-clickable so every tap funnels here. The debounce swallows
 // repeats from a held press, and a duplicate should another target ever be added back.

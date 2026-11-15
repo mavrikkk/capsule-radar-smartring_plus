@@ -212,26 +212,35 @@ static void refresh_card(void) {
         lv_color_t *pbuf = photo_buffer(&mw, &mh);
         lv_canvas_set_buffer(s_photo, pbuf, pw, ph, LV_IMG_CF_TRUE_COLOR);
         lv_obj_set_size(s_photo, pw, ph);
-        lv_obj_align(s_photo, LV_ALIGN_CENTER, 0, -28 - ph / 2);   // sit lower: fill the band down to the card
-        lv_obj_clear_flag(s_photo, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_invalidate(s_photo);
-        if (s_photoCredit) {
-            char c[52];
-            snprintf(c, sizeof(c), "Photo: %s", pcred[0] ? pcred : "planespotters.net");
-            lv_label_set_text(s_photoCredit, c);
-            lv_obj_align_to(s_photoCredit, s_photo, LV_ALIGN_OUT_BOTTOM_MID, 0, 1);
-            lv_obj_clear_flag(s_photoCredit, LV_OBJ_FLAG_HIDDEN);
-        }
-    } else if (s_photo) {
-        // No image to show yet: hide the canvas, but use the caption line to tell the
-        // user what's happening — "Loading..." while the fetch is in flight, or a quiet
-        // "No photo" once it finished without one. Unobtrusive (small, dim) but informative.
-        lv_obj_add_flag(s_photo, LV_OBJ_FLAG_HIDDEN);
-        if (s_photoCredit) {
-            const bool done = in.hex[0] && photo_done(in.hex);
-            lv_label_set_text(s_photoCredit, done ? "No photo available" : "Loading photo...");
-            lv_obj_align(s_photoCredit, LV_ALIGN_CENTER, 0, -104);   // where the photo would sit
-            lv_obj_clear_flag(s_photoCredit, LV_OBJ_FLAG_HIDDEN);
+#if defined(BOARD_SMARTRING_PLUS)
+    lv_obj_align(s_photo, LV_ALIGN_CENTER, 0, -14 - ph / 2);
+#else
+    lv_obj_align(s_photo, LV_ALIGN_CENTER, 0, -28 - ph / 2);
+#endif
+    lv_obj_clear_flag(s_photo, LV_OBJ_FLAG_HIDDEN);
+    if (credit[0]) {
+        char buf[80];
+        snprintf(buf, sizeof(buf), "Photo: %s", credit);
+        lv_label_set_text(s_photoCredit, buf);
+        lv_obj_align_to(s_photoCredit, s_photo, LV_ALIGN_OUT_BOTTOM_MID, 0, 1);
+        lv_obj_clear_flag(s_photoCredit, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_add_flag(s_photoCredit, LV_OBJ_FLAG_HIDDEN);
+    }
+} else {
+    lv_obj_add_flag(s_photo, LV_OBJ_FLAG_HIDDEN);
+    if (photo_pending(ac->hex)) {
+        lv_label_set_text(s_photoCredit, "Loading photo...");
+#if defined(BOARD_SMARTRING_PLUS)
+        lv_obj_align(s_photoCredit, LV_ALIGN_CENTER, 0, -76);
+#else
+        lv_obj_align(s_photoCredit, LV_ALIGN_CENTER, 0, -104);
+#endif
+        lv_obj_clear_flag(s_photoCredit, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_add_flag(s_photoCredit, LV_OBJ_FLAG_HIDDEN);
+    }
+}
         }
     }
 }
@@ -883,15 +892,18 @@ static lv_obj_t *make_tile_title(lv_obj_t *tile, const char *txt) {
     lv_label_set_text(l, txt);
     lv_obj_set_style_text_font(l, F16(), 0);
     lv_obj_set_style_text_color(l, UI_GREEN, 0);
+#if defined(BOARD_SMARTRING_PLUS)
+    lv_obj_align(l, LV_ALIGN_TOP_MID, 0, 14);
+#else
     lv_obj_align(l, LV_ALIGN_TOP_MID, 0, 22);
+#endif
     return l;
 }
 
-// A full-screen round panel that clips its content to the circle (for list/stats views).
 static lv_obj_t *make_round_panel(lv_obj_t *parent) {
     lv_obj_t *p = lv_obj_create(parent);
     lv_obj_remove_style_all(p);
-    lv_obj_set_size(p, 462, 462);
+    lv_obj_set_size(p, SCREEN_W - 4, SCREEN_H - 4);
     lv_obj_center(p);
     lv_obj_set_style_radius(p, LV_RADIUS_CIRCLE, 0);
     lv_obj_set_style_bg_color(p, lv_color_hex(0x05100A), 0);
@@ -912,20 +924,29 @@ static void card_close_cb(lv_event_t *e) {
     refresh_card();
 }
 
-static void build_card(void) {
+static void build_card() {
     s_card = lv_obj_create(s_tileRadar);
     lv_obj_remove_style_all(s_card);
-    // large text needs a taller card (three 18px data lines + the route line below them)
+#if defined(BOARD_SMARTRING_PLUS)
+    lv_obj_set_size(s_card, 248, s_bigText ? 124 : 104);
+    lv_obj_align(s_card, LV_ALIGN_CENTER, 0, s_bigText ? 38 : 44);
+#else
+    // Large text needs a taller card (three 18px data lines + the route line below them)
     lv_obj_set_size(s_card, s_bigText ? 316 : 300, s_bigText ? 148 : 118);
     lv_obj_align(s_card, LV_ALIGN_CENTER, 0, s_bigText ? 56 : 66);
+#endif
     lv_obj_set_style_bg_color(s_card, UI_PANEL, 0);
     lv_obj_set_style_bg_opa(s_card, 235, 0);
     lv_obj_set_style_radius(s_card, 14, 0);
     lv_obj_set_style_border_color(s_card, UI_GREEN, 0);
     lv_obj_set_style_border_opa(s_card, 90, 0);
     lv_obj_set_style_border_width(s_card, 1, 0);
+#if defined(BOARD_SMARTRING_PLUS)
+    lv_obj_set_style_pad_all(s_card, 10, 0);
+#else
     lv_obj_set_style_pad_all(s_card, 12, 0);
-    lv_obj_add_flag(s_card, LV_OBJ_FLAG_CLICKABLE);   // consume taps (don't deselect)
+#endif
+    lv_obj_add_flag(s_card, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_clear_flag(s_card, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(s_card, LV_OBJ_FLAG_HIDDEN);
 
@@ -937,21 +958,33 @@ static void build_card(void) {
     s_cardL = lv_label_create(s_card);
     lv_obj_set_style_text_font(s_cardL, F14(), 0);
     lv_obj_set_style_text_color(s_cardL, UI_SOFT, 0);
+#if defined(BOARD_SMARTRING_PLUS)
+    lv_obj_align(s_cardL, LV_ALIGN_TOP_LEFT, 0, s_bigText ? 24 : 22);
+#else
     lv_obj_align(s_cardL, LV_ALIGN_TOP_LEFT, 0, s_bigText ? 30 : 26);
+#endif
 
     s_cardR = lv_label_create(s_card);
     lv_obj_set_style_text_font(s_cardR, F14(), 0);
     lv_obj_set_style_text_color(s_cardR, UI_SOFT, 0);
+#if defined(BOARD_SMARTRING_PLUS)
+    lv_obj_align(s_cardR, LV_ALIGN_TOP_LEFT, s_bigText ? 124 : 118, s_bigText ? 24 : 22);
+#else
     lv_obj_align(s_cardR, LV_ALIGN_TOP_LEFT, s_bigText ? 160 : 150, s_bigText ? 30 : 26);
+#endif
 
     s_cardRoute = lv_label_create(s_card);
     lv_obj_set_style_text_font(s_cardRoute, F14(), 0);
     lv_obj_set_style_text_color(s_cardRoute, UI_GREEN, 0);
-    // fill the card width and dot out long "Origin -> Destination" instead of clipping
-    lv_obj_set_width(s_cardRoute, s_bigText ? 292 : 276);   // card 316/300 minus pad 12 x2
+#if defined(BOARD_SMARTRING_PLUS)
+    lv_obj_set_width(s_cardRoute, 228); // card 248 minus pad 10 x2
+    lv_label_set_long_mode(s_cardRoute, LV_LABEL_LONG_DOT);
+    lv_obj_align(s_cardRoute, LV_ALIGN_TOP_LEFT, 0, s_bigText ? 82 : 66);
+#else
+    lv_obj_set_width(s_cardRoute, s_bigText ? 292 : 276); // card 316/300 minus pad 12 x2
     lv_label_set_long_mode(s_cardRoute, LV_LABEL_LONG_DOT);
     lv_obj_align(s_cardRoute, LV_ALIGN_TOP_LEFT, 0, s_bigText ? 100 : 76);
-
+#endif
     // The X sits in the card's top-right corner, 4 px in from its edges (the content area
     // starts 13 px in: 12 px padding plus the 1 px frame). A child of the card: it hides with
     // it, and the card's sweep mask covers it.
@@ -1023,39 +1056,54 @@ void ui_splash_show(void) {
     lv_obj_set_style_bg_opa(cont, LV_OPA_COVER, 0);
     lv_obj_clear_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
 
-    // concentric rings
+    #if defined(BOARD_SMARTRING_PLUS)
+    const lv_coord_t dia[3] = { 162, 110, 60 };
+#else
     const lv_coord_t dia[3] = { 210, 142, 78 };
-    const lv_opa_t   op[3]  = { 90, 120, 160 };
+#endif
     for (int i = 0; i < 3; ++i) {
         lv_obj_t *r = lv_obj_create(cont);
         lv_obj_remove_style_all(r);
         lv_obj_set_size(r, dia[i], dia[i]);
-        lv_obj_align(r, LV_ALIGN_CENTER, 0, -8);
         lv_obj_set_style_radius(r, LV_RADIUS_CIRCLE, 0);
         lv_obj_set_style_border_color(r, UI_GREEN, 0);
-        lv_obj_set_style_border_opa(r, op[i], 0);
-        lv_obj_set_style_border_width(r, 2, 0);
-        lv_obj_clear_flag(r, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_set_style_border_opa(r, 90, 0);
+        lv_obj_set_style_border_width(r, 1, 0);
+        lv_obj_align(r, LV_ALIGN_CENTER, 0, -8);
     }
-    // rotating sweep
-    lv_obj_t *sweep = lv_spinner_create(cont, 1400, 55);
-    lv_obj_set_size(sweep, 210, 210);
-    lv_obj_align(sweep, LV_ALIGN_CENTER, 0, -8);
-    lv_obj_set_style_arc_opa(sweep, 0, LV_PART_MAIN);
+
+    lv_obj_t *sweep = lv_arc_create(cont);
+    lv_obj_set_size(sweep, dia[0], dia[0]);
+    lv_arc_set_bg_angles(sweep, 0, 360);
+    lv_arc_set_angles(sweep, 0, 75);
+    lv_obj_remove_style(sweep, NULL, LV_PART_KNOB);
+    lv_obj_set_style_arc_width(sweep, 3, LV_PART_MAIN);
+    lv_obj_set_style_arc_color(sweep, UI_GREEN, LV_PART_MAIN);
+    lv_obj_set_style_arc_opa(sweep, 40, LV_PART_MAIN);
+    lv_obj_set_style_arc_width(sweep, 3, LV_PART_INDICATOR);
     lv_obj_set_style_arc_color(sweep, UI_GREEN, LV_PART_INDICATOR);
-    lv_obj_set_style_arc_width(sweep, 4, LV_PART_INDICATOR);
+    lv_obj_align(sweep, LV_ALIGN_CENTER, 0, -8);
 
     lv_obj_t *title = lv_label_create(cont);
     lv_label_set_text(title, "CAPSULE RADAR");
+    lv_obj_set_style_text_color(title, UI_INK, 0);
+#if defined(BOARD_SMARTRING_PLUS)
+    lv_obj_set_style_text_font(title, &lv_font_montserrat_20, 0);
+    lv_obj_align(title, LV_ALIGN_CENTER, 0, 92);
+#else
     lv_obj_set_style_text_font(title, &lv_font_montserrat_28, 0);
-    lv_obj_set_style_text_color(title, UI_GREEN, 0);
     lv_obj_align(title, LV_ALIGN_CENTER, 0, 118);
+#endif
 
     lv_obj_t *sub = lv_label_create(cont);
     lv_label_set_text(sub, "Live ADS-B radar");
+    lv_obj_set_style_text_color(sub, UI_GREEN, 0);
     lv_obj_set_style_text_font(sub, F14(), 0);
-    lv_obj_set_style_text_color(sub, UI_SOFT, 0);
+#if defined(BOARD_SMARTRING_PLUS)
+    lv_obj_align(sub, LV_ALIGN_CENTER, 0, 120);
+#else
     lv_obj_align(sub, LV_ALIGN_CENTER, 0, 150);
+#endif
 
     lv_timer_t *t = lv_timer_create(splash_dismiss_cb, 2200, cont);   // hold, then fade out
     lv_timer_set_repeat_count(t, 1);
@@ -1095,91 +1143,114 @@ void ui_create(void) {
     lv_obj_add_event_cb(s_tileRadar, radar_presslost_cb, LV_EVENT_PRESS_LOST, NULL);
     build_card();
 
-    // on-screen range/zoom button (reliable single tap; bottom, above the 'S' marker)
     s_zoomBtn = lv_btn_create(s_tileRadar);
+#if defined(BOARD_SMARTRING_PLUS)
+    lv_obj_set_size(s_zoomBtn, 104, 36);
+    lv_obj_set_ext_click_area(s_zoomBtn, 14);
+    lv_obj_align(s_zoomBtn, LV_ALIGN_BOTTOM_MID, 0, -20);
+    lv_obj_set_style_radius(s_zoomBtn, 16, 0);
+#else
     lv_obj_set_size(s_zoomBtn, 120, 44);
-    lv_obj_set_ext_click_area(s_zoomBtn, 18);   // invisibly enlarge the tap target (easier to hit)
+    lv_obj_set_ext_click_area(s_zoomBtn, 18);
     lv_obj_align(s_zoomBtn, LV_ALIGN_BOTTOM_MID, 0, -32);
     lv_obj_set_style_radius(s_zoomBtn, 18, 0);
+#endif
     lv_obj_set_style_bg_color(s_zoomBtn, UI_PANEL, 0);
-    lv_obj_set_style_bg_opa(s_zoomBtn, 225, 0);
+    lv_obj_set_style_bg_opa(s_zoomBtn, 210, 0);
     lv_obj_set_style_border_color(s_zoomBtn, UI_GREEN, 0);
+    lv_obj_set_style_border_opa(s_zoomBtn, 110, 0);
     lv_obj_set_style_border_width(s_zoomBtn, 1, 0);
-    lv_obj_set_style_border_opa(s_zoomBtn, 170, 0);
-    lv_obj_clear_flag(s_zoomBtn, LV_OBJ_FLAG_SCROLL_CHAIN);  // tapping it must not swipe the tileview
-    lv_obj_add_event_cb(s_zoomBtn, zoom_cb, LV_EVENT_PRESSED, NULL);  // fire on touch-down, not release
+    lv_obj_set_style_bg_color(s_zoomBtn, UI_GREEN, LV_STATE_PRESSED);
+    lv_obj_set_style_bg_opa(s_zoomBtn, 70, LV_STATE_PRESSED);
+    lv_obj_add_event_cb(s_zoomBtn, zoom_cb, LV_EVENT_CLICKED, NULL);
     s_zoomLbl = lv_label_create(s_zoomBtn);
     lv_label_set_text(s_zoomLbl, LV_SYMBOL_LOOP " 30 km");
     lv_obj_set_style_text_font(s_zoomLbl, F14(), 0);
-    lv_obj_set_style_text_color(s_zoomLbl, UI_GREEN, 0);
+    lv_obj_set_style_text_color(s_zoomLbl, UI_INK, 0);
     lv_obj_center(s_zoomLbl);
 
-    // top status HUD (wifi / aircraft count / clock); white reads on both themes.
-    // WiFi is a 4-bar signal meter: bar count = RSSI strength, colour = feed health.
+#if defined(BOARD_SMARTRING_PLUS)
+    const lv_coord_t hudY = 38;
+    const lv_coord_t hudDateY = 56;
+    const lv_coord_t hudXWifi = -70;
+    const lv_coord_t hudXGps = -44;
+    const lv_coord_t hudXCount = -20;
+    const lv_coord_t hudXClock = 24;
+    const lv_coord_t hudXBatt = 72;
+#else
+    const lv_coord_t hudY = 50;
+    const lv_coord_t hudDateY = 70;
+    const lv_coord_t hudXWifi = -94;
+    const lv_coord_t hudXGps = -62;
+    const lv_coord_t hudXCount = -34;
+    const lv_coord_t hudXClock = 30;
+    const lv_coord_t hudXBatt = 92;
+#endif
+
     s_hudWifi = lv_obj_create(s_tileRadar);
     lv_obj_remove_style_all(s_hudWifi);
     lv_obj_set_size(s_hudWifi, 21, 14);
-    lv_obj_align(s_hudWifi, LV_ALIGN_TOP_MID, -94, 50);
-    lv_obj_clear_flag(s_hudWifi, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_align(s_hudWifi, LV_ALIGN_TOP_MID, hudXWifi, hudY);
     for (int i = 0; i < 4; ++i) {
         s_hudBars[i] = lv_obj_create(s_hudWifi);
         lv_obj_remove_style_all(s_hudBars[i]);
-        lv_obj_set_size(s_hudBars[i], 3, (lv_coord_t)(4 + i * 3));   // 4, 7, 10, 13 px tall
+        lv_obj_set_size(s_hudBars[i], 3, 4 + i * 3);
         lv_obj_align(s_hudBars[i], LV_ALIGN_BOTTOM_LEFT, (lv_coord_t)(i * 5), 0);
-        lv_obj_set_style_radius(s_hudBars[i], 1, 0);
-        lv_obj_set_style_bg_color(s_hudBars[i], UI_INK, 0);
+        lv_obj_set_style_bg_color(s_hudBars[i], UI_DIM, 0);
         lv_obj_set_style_bg_opa(s_hudBars[i], LV_OPA_COVER, 0);
-        lv_obj_clear_flag(s_hudBars[i], LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_style_radius(s_hudBars[i], 1, 0);
     }
 
-    s_hudGps = lv_label_create(s_tileRadar);     // GPS satellite icon (between WiFi bars and count)
+    s_hudGps = lv_label_create(s_tileRadar);
     lv_obj_set_style_text_font(s_hudGps, F14(), 0);
-    lv_obj_set_style_text_color(s_hudGps, UI_GREEN, 0);
-    lv_label_set_text(s_hudGps, "");             // hidden until ui_set_gps() says GPS is on
-    lv_obj_align(s_hudGps, LV_ALIGN_TOP_MID, -62, 50);
+    lv_obj_set_style_text_color(s_hudGps, UI_DIM, 0);
+    lv_label_set_text(s_hudGps, LV_SYMBOL_GPS);
+    lv_obj_align(s_hudGps, LV_ALIGN_TOP_MID, hudXGps, hudY);
 
     s_hudCount = lv_label_create(s_tileRadar);
     lv_obj_set_style_text_font(s_hudCount, F14(), 0);
-    lv_obj_set_style_text_color(s_hudCount, UI_INK, 0);
+    lv_obj_set_style_text_color(s_hudCount, UI_GREEN, 0);
     lv_label_set_text(s_hudCount, "0");
-    lv_obj_align(s_hudCount, LV_ALIGN_TOP_MID, -34, 50);
+    lv_obj_align(s_hudCount, LV_ALIGN_TOP_MID, hudXCount, hudY);
 
     s_hudClock = lv_label_create(s_tileRadar);
     lv_obj_set_style_text_font(s_hudClock, F14(), 0);
     lv_obj_set_style_text_color(s_hudClock, UI_INK, 0);
     lv_label_set_text(s_hudClock, "--:--");
-    lv_obj_align(s_hudClock, LV_ALIGN_TOP_MID, 30, 50);
+    lv_obj_align(s_hudClock, LV_ALIGN_TOP_MID, hudXClock, hudY);
 
     s_hudBatt = lv_label_create(s_tileRadar);
     lv_obj_set_style_text_font(s_hudBatt, F14(), 0);
-    lv_obj_set_style_text_color(s_hudBatt, UI_INK, 0);
+    lv_obj_set_style_text_color(s_hudBatt, UI_DIM, 0);
     lv_label_set_text(s_hudBatt, "");
-    lv_obj_align(s_hudBatt, LV_ALIGN_TOP_MID, 92, 50);
+    lv_obj_align(s_hudBatt, LV_ALIGN_TOP_MID, hudXBatt, hudY);
 
     s_hudDate = lv_label_create(s_tileRadar);
     lv_obj_set_style_text_font(s_hudDate, F12(), 0);
-    lv_obj_set_style_text_color(s_hudDate, UI_INK, 0);
-    lv_obj_set_style_text_opa(s_hudDate, 140, 0);
+    lv_obj_set_style_text_color(s_hudDate, UI_SOFT, 0);
     lv_label_set_text(s_hudDate, "");
-    lv_obj_align(s_hudDate, LV_ALIGN_TOP_MID, 0, 70);
+    lv_obj_align(s_hudDate, LV_ALIGN_TOP_MID, 0, hudDateY);
 
-    // The theme hold's hint (radar_pressing_cb), styled like the zoom button and centred like
-    // the detail card. Opaque: while it shows, it sits over the middle of an open card.
     s_holdHint = lv_label_create(s_tileRadar);
     lv_label_set_text(s_holdHint, "Lift to change theme");
     lv_obj_set_style_text_font(s_holdHint, F14(), 0);
-    lv_obj_set_style_text_color(s_holdHint, UI_GREEN, 0);
+    lv_obj_set_style_text_color(s_holdHint, UI_INK, 0);
     lv_obj_set_style_bg_color(s_holdHint, UI_PANEL, 0);
-    lv_obj_set_style_bg_opa(s_holdHint, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_opa(s_holdHint, 235, 0);
     lv_obj_set_style_border_color(s_holdHint, UI_GREEN, 0);
+    lv_obj_set_style_border_opa(s_holdHint, 130, 0);
     lv_obj_set_style_border_width(s_holdHint, 1, 0);
-    lv_obj_set_style_border_opa(s_holdHint, 170, 0);
     lv_obj_set_style_radius(s_holdHint, 18, 0);
+#if defined(BOARD_SMARTRING_PLUS)
+    lv_obj_set_style_pad_hor(s_holdHint, 14, 0);
+    lv_obj_set_style_pad_ver(s_holdHint, 10, 0);
+    lv_obj_align(s_holdHint, LV_ALIGN_CENTER, 0, s_bigText ? 38 : 44);
+#else
     lv_obj_set_style_pad_hor(s_holdHint, 18, 0);
     lv_obj_set_style_pad_ver(s_holdHint, 13, 0);
     lv_obj_align(s_holdHint, LV_ALIGN_CENTER, 0, s_bigText ? 56 : 66);
+#endif
     lv_obj_add_flag(s_holdHint, LV_OBJ_FLAG_HIDDEN);
-
     // idle clock: a transparent layer above everything takes the touch that wakes the radar
     s_clockCatcher = lv_obj_create(lv_layer_top());
     lv_obj_remove_style_all(s_clockCatcher);
@@ -1190,87 +1261,100 @@ void ui_create(void) {
     lv_obj_add_event_cb(s_clockCatcher, clock_catcher_release_cb, LV_EVENT_PRESS_LOST, NULL);
     radar::setClockStageCb(clock_stage_cb);
 
-    // --- list tile (circular panel, clipped to the round screen) ---
-    lv_obj_t *lp = make_round_panel(s_tileList);
+        lv_obj_t *lp = make_round_panel(s_tileList);
     make_tile_title(lp, "AIRCRAFT");
     s_list = lv_list_create(lp);
-    lv_obj_set_size(s_list, s_bigText ? 340 : 300, 372);   // wider rows so big-font distances don't clip
+#if defined(BOARD_SMARTRING_PLUS)
+    lv_obj_set_size(s_list, 244, 244);
+    lv_obj_align(s_list, LV_ALIGN_CENTER, 0, 12);
+#else
+    lv_obj_set_size(s_list, s_bigText ? 340 : 300, 372);
     lv_obj_align(s_list, LV_ALIGN_CENTER, 0, 22);
+#endif
     lv_obj_set_style_bg_opa(s_list, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(s_list, 0, 0);
     lv_obj_set_style_pad_row(s_list, 2, 0);
-    // rows are plain labels: they inherit font/colour from here (see build_list)
     lv_obj_set_style_text_font(s_list, F16(), 0);
-    lv_obj_set_style_text_color(s_list, UI_SOFT, 0);
-    lv_obj_add_event_cb(s_list, list_press_cb, LV_EVENT_PRESSED, NULL);  // pick the plane at touch-down
-    lv_obj_add_event_cb(s_list, list_tap_cb, LV_EVENT_CLICKED, NULL);   // rows aren't clickable
 
-    // --- stats tile (circular panel) ---
     lv_obj_t *sp = make_round_panel(s_tileStats);
     make_tile_title(sp, "STATS");
     s_statsLbl = lv_label_create(sp);
     lv_obj_set_style_text_font(s_statsLbl, F16(), 0);
-    lv_obj_set_style_text_color(s_statsLbl, UI_SOFT, 0);
-    lv_label_set_text(s_statsLbl, "Aircraft   0");
+    lv_obj_set_style_text_color(s_statsLbl, UI_INK, 0);
+    lv_obj_set_style_text_align(s_statsLbl, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(s_statsLbl, LV_ALIGN_CENTER, 0, -16);
 
-    s_statsGps = lv_label_create(sp);               // GPS status line (hidden unless GPS is on)
+    s_statsGps = lv_label_create(sp);
     lv_obj_set_style_text_font(s_statsGps, F14(), 0);
     lv_obj_set_style_text_color(s_statsGps, UI_SOFT, 0);
     lv_obj_set_style_text_align(s_statsGps, LV_TEXT_ALIGN_CENTER, 0);
-    lv_label_set_text(s_statsGps, "");
+#if defined(BOARD_SMARTRING_PLUS)
+    lv_obj_align(s_statsGps, LV_ALIGN_CENTER, 0, 68);
+#else
     lv_obj_align(s_statsGps, LV_ALIGN_CENTER, 0, 90);
+#endif
 
-    // footer: where to reach the configuration page (IP / hostname / setup AP)
     s_statsNet = lv_label_create(sp);
-    lv_obj_set_width(s_statsNet, 320);
     lv_obj_set_style_text_font(s_statsNet, F14(), 0);
-    lv_obj_set_style_text_color(s_statsNet, UI_GREEN, 0);
+    lv_obj_set_style_text_color(s_statsNet, UI_DIM, 0);
     lv_obj_set_style_text_align(s_statsNet, LV_TEXT_ALIGN_CENTER, 0);
-    lv_label_set_text(s_statsNet, "");
+#if defined(BOARD_SMARTRING_PLUS)
+    lv_obj_set_width(s_statsNet, 240);
+    lv_obj_align(s_statsNet, LV_ALIGN_CENTER, 0, 102);
+#else
+    lv_obj_set_width(s_statsNet, 320);
     lv_obj_align(s_statsNet, LV_ALIGN_CENTER, 0, 132);
+#endif
 
-    // power off (hold) -- top of the Stats view, under the title
     s_offBtn = lv_btn_create(sp);
+#if defined(BOARD_SMARTRING_PLUS)
+    lv_obj_set_size(s_offBtn, 168, 34);
+    lv_obj_set_ext_click_area(s_offBtn, 10);
+    lv_obj_align(s_offBtn, LV_ALIGN_CENTER, 0, -112);
+#else
     lv_obj_set_size(s_offBtn, 210, 40);
     lv_obj_set_ext_click_area(s_offBtn, 12);
     lv_obj_align(s_offBtn, LV_ALIGN_CENTER, 0, -150);
-    lv_obj_set_style_radius(s_offBtn, 18, 0);
-    lv_obj_set_style_bg_color(s_offBtn, UI_PANEL, 0);
-    lv_obj_set_style_bg_opa(s_offBtn, 225, 0);
-    lv_obj_set_style_border_color(s_offBtn, UI_EMERG, 0);
+#endif
+    lv_obj_set_style_radius(s_offBtn, 20, 0);
+    lv_obj_set_style_bg_color(s_offBtn, lv_color_hex(0x281010), 0);
+    lv_obj_set_style_bg_opa(s_offBtn, 210, 0);
+    lv_obj_set_style_border_color(s_offBtn, lv_color_hex(0xFF4D4D), 0);
+    lv_obj_set_style_border_opa(s_offBtn, 120, 0);
     lv_obj_set_style_border_width(s_offBtn, 1, 0);
-    lv_obj_clear_flag(s_offBtn, LV_OBJ_FLAG_SCROLL_CHAIN);
-    lv_obj_add_event_cb(s_offBtn, poweroff_cb, LV_EVENT_ALL, NULL);
+    lv_obj_set_style_bg_color(s_offBtn, lv_color_hex(0xFF4D4D), LV_STATE_PRESSED);
+    lv_obj_set_style_bg_opa(s_offBtn, 90, LV_STATE_PRESSED);
+    lv_obj_add_event_cb(s_offBtn, off_btn_cb, LV_EVENT_ALL, NULL);
+    lv_obj_add_flag(s_offBtn, LV_OBJ_FLAG_HIDDEN);
     s_offLbl = lv_label_create(s_offBtn);
     lv_label_set_text(s_offLbl, LV_SYMBOL_POWER " Hold to power off");
     lv_obj_set_style_text_font(s_offLbl, F14(), 0);
-    lv_obj_set_style_text_color(s_offLbl, UI_EMERG, 0);
+    lv_obj_set_style_text_color(s_offLbl, lv_color_hex(0xFF6B6B), 0);
     lv_obj_center(s_offLbl);
-    lv_obj_add_flag(s_offBtn, LV_OBJ_FLAG_HIDDEN);   // shown only when ui_set_poweroff_cb(non-null)
 
-    // hold-progress ring round the screen edge (top layer, so it shows over the Stats tile)
     s_offRing = lv_arc_create(lv_layer_top());
+    lv_obj_remove_style_all(s_offRing);
     lv_obj_set_size(s_offRing, SCREEN_W, SCREEN_H);
     lv_obj_center(s_offRing);
-    lv_obj_remove_style(s_offRing, NULL, LV_PART_KNOB);
-    lv_obj_clear_flag(s_offRing, LV_OBJ_FLAG_CLICKABLE);
-    lv_arc_set_rotation(s_offRing, 270);              // 0 degrees = 12 o'clock
     lv_arc_set_bg_angles(s_offRing, 0, 360);
-    lv_arc_set_angles(s_offRing, 0, 0);
-    lv_obj_set_style_arc_opa(s_offRing, LV_OPA_TRANSP, LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(s_offRing, LV_OPA_TRANSP, LV_PART_MAIN);
-    lv_obj_set_style_border_width(s_offRing, 0, LV_PART_MAIN);
+    lv_arc_set_rotation(s_offRing, 270);
+    lv_arc_set_range(s_offRing, 0, 100);
+    lv_arc_set_value(s_offRing, 0);
     lv_obj_set_style_arc_width(s_offRing, 6, LV_PART_INDICATOR);
-    lv_obj_set_style_arc_color(s_offRing, UI_EMERG, LV_PART_INDICATOR);
-    lv_obj_set_style_arc_rounded(s_offRing, false, LV_PART_INDICATOR);
-    lv_obj_set_style_pad_all(s_offRing, 0, 0);
+    lv_obj_set_style_arc_color(s_offRing, lv_color_hex(0xFF4D4D), LV_PART_INDICATOR);
+    lv_obj_set_style_arc_rounded(s_offRing, true, LV_PART_INDICATOR);
+    lv_obj_clear_flag(s_offRing, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_flag(s_offRing, LV_OBJ_FLAG_HIDDEN);
 
-    lv_obj_t *ver = lv_label_create(sp);            // firmware version (so users can tell what's flashed)
+    lv_obj_t *ver = lv_label_create(sp);
+    lv_label_set_text(ver, "Capsule Radar v" FW_VERSION);
     lv_obj_set_style_text_font(ver, F12(), 0);
     lv_obj_set_style_text_color(ver, UI_DIM, 0);
-    lv_label_set_text(ver, "Capsule Radar v" FW_VERSION);
+#if defined(BOARD_SMARTRING_PLUS)
+    lv_obj_align(ver, LV_ALIGN_CENTER, 0, 142);
+#else
     lv_obj_align(ver, LV_ALIGN_CENTER, 0, 170);
+#endif
 
     // --- weather tile (current conditions + next three days) ---
     lv_obj_t *wp = make_round_panel(s_tileWeather);
@@ -1324,162 +1408,224 @@ void ui_create(void) {
     lv_obj_add_flag(s_weatherDays, LV_OBJ_FLAG_HIDDEN);
 
     // Default mode: genuine precipitation radar with aviation-style overlays.
+    #if defined(BOARD_SMARTRING_PLUS)
+    const lv_coord_t wxTop = 44;
+    const lv_coord_t wxSize = WX_RADAR_SIZE; // 240
+    const lv_coord_t wxRing0 = wxSize;
+    const lv_coord_t wxRing1 = (wxSize * 2) / 3;
+    const lv_coord_t wxRing2 = wxSize / 3;
+    const lv_coord_t wxFooterW = 250;
+#else
+    const lv_coord_t wxTop = 52;
+    const lv_coord_t wxSize = WX_RADAR_SIZE; // 360
+    const lv_coord_t wxRing0 = 360;
+    const lv_coord_t wxRing1 = 240;
+    const lv_coord_t wxRing2 = 120;
+    const lv_coord_t wxFooterW = 360;
+#endif
+
     s_wxAirport = lv_label_create(wp);
     lv_obj_set_style_text_font(s_wxAirport, F14(), 0);
     lv_obj_set_style_text_color(s_wxAirport, UI_SOFT, 0);
-    lv_obj_set_style_bg_color(s_wxAirport, lv_color_black(), 0);
-    lv_obj_set_style_bg_opa(s_wxAirport, 160, 0);
-    lv_obj_set_style_pad_left(s_wxAirport, 6, 0);
-    lv_obj_set_style_pad_right(s_wxAirport, 6, 0);
+    lv_obj_set_style_bg_color(s_wxAirport, lv_color_hex(0x05100A), 0);
+    lv_obj_set_style_bg_opa(s_wxAirport, 215, 0);
+    lv_obj_set_style_pad_hor(s_wxAirport, 6, 0);
     lv_obj_set_style_radius(s_wxAirport, 6, 0);
-    lv_label_set_text(s_wxAirport, "RADAR CENTRE");
-    lv_obj_align(s_wxAirport, LV_ALIGN_TOP_MID, 0, 46);
+    lv_label_set_text(s_wxAirport, "");
+    lv_obj_align(s_wxAirport, LV_ALIGN_TOP_MID, 0, wxTop - 6);
 
     s_wxCanvas = lv_canvas_create(wp);
-    lv_obj_set_size(s_wxCanvas, WX_RADAR_SIZE, WX_RADAR_SIZE);
-    lv_obj_align(s_wxCanvas, LV_ALIGN_TOP_MID, 0, 52);
-    // Not clickable: taps pass through to the panel, which owns the whole view.
-    lv_obj_clear_flag(s_wxCanvas, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_flag(s_wxCanvas, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_move_background(s_wxCanvas);
+    lv_obj_set_size(s_wxCanvas, wxSize, wxSize);
+    lv_obj_set_style_radius(s_wxCanvas, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_clip_corner(s_wxCanvas, true, 0);
+    lv_obj_align(s_wxCanvas, LV_ALIGN_TOP_MID, 0, wxTop);
 
     s_wxStatus = lv_label_create(wp);
     lv_obj_set_style_text_font(s_wxStatus, F14(), 0);
     lv_obj_set_style_text_color(s_wxStatus, UI_DIM, 0);
-    lv_label_set_text(s_wxStatus, "ACQUIRING WX RADAR...");
-    lv_obj_align(s_wxStatus, LV_ALIGN_TOP_MID, 0, 222);
+    lv_label_set_text(s_wxStatus, "Waiting for WiFi...");
+    lv_obj_align(s_wxStatus, LV_ALIGN_TOP_MID, 0, wxTop + wxSize / 2 - 10);
 
-    const int ringSize[3] = { 360, 240, 120 };
+    const lv_coord_t ringSize[3] = { wxRing0, wxRing1, wxRing2 };
     for (int i = 0; i < 3; ++i) {
         s_wxRings[i] = lv_obj_create(wp);
         lv_obj_remove_style_all(s_wxRings[i]);
         lv_obj_set_size(s_wxRings[i], ringSize[i], ringSize[i]);
-        lv_obj_align(s_wxRings[i], LV_ALIGN_TOP_MID, 0, 52 + (360 - ringSize[i]) / 2);
         lv_obj_set_style_radius(s_wxRings[i], LV_RADIUS_CIRCLE, 0);
         lv_obj_set_style_border_color(s_wxRings[i], UI_GREEN, 0);
-        lv_obj_set_style_border_opa(s_wxRings[i], i == 0 ? 180 : 90, 0);
+        lv_obj_set_style_border_opa(s_wxRings[i], i == 0 ? 75 : 42, 0);
         lv_obj_set_style_border_width(s_wxRings[i], 1, 0);
-        lv_obj_clear_flag(s_wxRings[i], LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_align(s_wxRings[i], LV_ALIGN_TOP_MID, 0, wxTop + (wxSize - ringSize[i]) / 2);
+        lv_obj_clear_flag(s_wxRings[i], LV_OBJ_FLAG_CLICKABLE);
     }
     s_wxNorth = lv_label_create(wp);
     lv_obj_set_style_text_font(s_wxNorth, F12(), 0);
     lv_obj_set_style_text_color(s_wxNorth, UI_GREEN, 0);
     lv_label_set_text(s_wxNorth, "N");
-    lv_obj_align(s_wxNorth, LV_ALIGN_TOP_MID, 0, 58);
+    lv_obj_align(s_wxNorth, LV_ALIGN_TOP_MID, 0, wxTop + 6);
+
     s_wxCenter = lv_label_create(wp);
     lv_obj_set_style_text_font(s_wxCenter, &lv_font_montserrat_28, 0);
-    lv_obj_set_style_text_color(s_wxCenter, UI_INK, 0);
+    lv_obj_set_style_text_color(s_wxCenter, UI_GREEN, 0);
     lv_label_set_text(s_wxCenter, "+");
-    lv_obj_align(s_wxCenter, LV_ALIGN_TOP_MID, 0, 219);
+    lv_obj_align(s_wxCenter, LV_ALIGN_TOP_MID, 0, wxTop + wxSize / 2 - 13);
+
     s_wxRange = lv_label_create(wp);
     lv_obj_set_style_text_font(s_wxRange, F12(), 0);
-    lv_obj_set_style_text_color(s_wxRange, UI_GREEN, 0);
-    lv_label_set_text(s_wxRange, "75 KM");
-    lv_obj_align(s_wxRange, LV_ALIGN_TOP_MID, 128, 225);
+    lv_obj_set_style_text_color(s_wxRange, UI_SOFT, 0);
+    lv_label_set_text(s_wxRange, "200 km");
+    lv_obj_align(s_wxRange, LV_ALIGN_TOP_MID, (wxSize * 128) / 360, wxTop + wxSize / 2 - 7);
 
     s_wxFooter = lv_label_create(wp);
-    lv_obj_set_width(s_wxFooter, 360);
+    lv_obj_set_width(s_wxFooter, wxFooterW);
     lv_obj_set_style_text_font(s_wxFooter, F16(), 0);
     lv_obj_set_style_text_color(s_wxFooter, UI_INK, 0);
     lv_obj_set_style_text_align(s_wxFooter, LV_TEXT_ALIGN_CENTER, 0);
-    lv_label_set_text(s_wxFooter, "WEATHER DATA PENDING");
-    lv_obj_align(s_wxFooter, LV_ALIGN_TOP_MID, 0, 326);
-    lv_obj_set_style_bg_color(s_wxFooter, lv_color_black(), 0);
-    lv_obj_set_style_bg_opa(s_wxFooter, 185, 0);
+    lv_obj_set_style_bg_color(s_wxFooter, lv_color_hex(0x05100A), 0);
+    lv_obj_set_style_bg_opa(s_wxFooter, 215, 0);
     lv_obj_set_style_pad_hor(s_wxFooter, 8, 0);
     lv_obj_set_style_radius(s_wxFooter, 7, 0);
+    lv_label_set_text(s_wxFooter, "");
+#if defined(BOARD_SMARTRING_PLUS)
+    lv_obj_align(s_wxFooter, LV_ALIGN_TOP_MID, 0, 248);
+#else
+    lv_obj_align(s_wxFooter, LV_ALIGN_TOP_MID, 0, 326);
+#endif
+
     s_wxMeta = lv_label_create(wp);
-    lv_obj_set_width(s_wxMeta, 360);
+    lv_obj_set_width(s_wxMeta, wxFooterW);
     lv_obj_set_style_text_font(s_wxMeta, F14(), 0);
     lv_obj_set_style_text_color(s_wxMeta, UI_SOFT, 0);
     lv_obj_set_style_text_align(s_wxMeta, LV_TEXT_ALIGN_CENTER, 0);
-    lv_label_set_text(s_wxMeta, "");
-    lv_obj_align(s_wxMeta, LV_ALIGN_TOP_MID, 0, 351);
-    lv_obj_set_style_bg_color(s_wxMeta, lv_color_black(), 0);
-    lv_obj_set_style_bg_opa(s_wxMeta, 185, 0);
+    lv_obj_set_style_bg_color(s_wxMeta, lv_color_hex(0x05100A), 0);
+    lv_obj_set_style_bg_opa(s_wxMeta, 215, 0);
     lv_obj_set_style_pad_hor(s_wxMeta, 8, 0);
     lv_obj_set_style_radius(s_wxMeta, 7, 0);
+    lv_label_set_text(s_wxMeta, "");
+#if defined(BOARD_SMARTRING_PLUS)
+    lv_obj_align(s_wxMeta, LV_ALIGN_TOP_MID, 0, 270);
+#else
+    lv_obj_align(s_wxMeta, LV_ALIGN_TOP_MID, 0, 351);
+#endif
+
     s_wxAttrib = lv_label_create(wp);
     lv_obj_set_style_text_font(s_wxAttrib, F12(), 0);
     lv_obj_set_style_text_color(s_wxAttrib, UI_DIM, 0);
-    lv_label_set_text(s_wxAttrib, "WAITING FOR RADAR DATA");
-    lv_obj_align(s_wxAttrib, LV_ALIGN_TOP_MID, 0, 376);
-    lv_obj_set_style_bg_color(s_wxAttrib, lv_color_black(), 0);
-    lv_obj_set_style_bg_opa(s_wxAttrib, 170, 0);
+    lv_obj_set_style_bg_color(s_wxAttrib, lv_color_hex(0x05100A), 0);
+    lv_obj_set_style_bg_opa(s_wxAttrib, 215, 0);
     lv_obj_set_style_pad_hor(s_wxAttrib, 6, 0);
     lv_obj_set_style_radius(s_wxAttrib, 6, 0);
+    lv_label_set_text(s_wxAttrib, "RainViewer");
+#if defined(BOARD_SMARTRING_PLUS)
+    lv_obj_align(s_wxAttrib, LV_ALIGN_TOP_MID, 0, 290);
+#else
+    lv_obj_align(s_wxAttrib, LV_ALIGN_TOP_MID, 0, 376);
+#endif
 
-    // Forecast mode: independent, aligned objects instead of a tiny text table.
+    // 3-Day Forecast view
     s_fcCurrent = lv_label_create(wp);
+#if defined(BOARD_SMARTRING_PLUS)
+    lv_obj_set_style_text_font(s_fcCurrent, &lv_font_montserrat_20, 0);
+    lv_obj_align(s_fcCurrent, LV_ALIGN_TOP_MID, 0, 44);
+#else
     lv_obj_set_style_text_font(s_fcCurrent, &lv_font_montserrat_28, 0);
-    lv_obj_set_style_text_color(s_fcCurrent, UI_INK, 0);
-    lv_label_set_text(s_fcCurrent, "-- C");
     lv_obj_align(s_fcCurrent, LV_ALIGN_TOP_MID, 0, 68);
+#endif
+    lv_obj_set_style_text_color(s_fcCurrent, UI_INK, 0);
+
     s_fcCondition = lv_label_create(wp);
     lv_obj_set_style_text_font(s_fcCondition, F16(), 0);
     lv_obj_set_style_text_color(s_fcCondition, UI_SOFT, 0);
-    lv_label_set_text(s_fcCondition, "Waiting for data");
+#if defined(BOARD_SMARTRING_PLUS)
+    lv_obj_align(s_fcCondition, LV_ALIGN_TOP_MID, 0, 72);
+    const lv_coord_t colX[3] = { -90, 0, 90 };
+    const lv_coord_t fcMetNameY = 104;
+    const lv_coord_t fcMetValY = 120;
+    const lv_coord_t fcDayY = 158;
+    const lv_coord_t fcCondY = 180;
+    const lv_coord_t fcCondW = 86;
+    const lv_coord_t fcTempY = 216;
+    const lv_coord_t fcRainY = 238;
+    const lv_coord_t fcUpdY = 272;
+#else
     lv_obj_align(s_fcCondition, LV_ALIGN_TOP_MID, 0, 105);
-
-    const char *metricNames[3] = { "FEELS", "HUMIDITY", "WIND" };
-    const int colX[3] = { -122, 0, 122 };
+    const lv_coord_t colX[3] = { -122, 0, 122 };
+    const lv_coord_t fcMetNameY = 150;
+    const lv_coord_t fcMetValY = 170;
+    const lv_coord_t fcDayY = 226;
+    const lv_coord_t fcCondY = 254;
+    const lv_coord_t fcCondW = 116;
+    const lv_coord_t fcTempY = 292;
+    const lv_coord_t fcRainY = 320;
+    const lv_coord_t fcUpdY = 365;
+#endif
     for (int i = 0; i < 3; ++i) {
         s_fcMetricName[i] = lv_label_create(wp);
         lv_obj_set_style_text_font(s_fcMetricName[i], F12(), 0);
         lv_obj_set_style_text_color(s_fcMetricName[i], UI_DIM, 0);
-        lv_label_set_text(s_fcMetricName[i], metricNames[i]);
-        lv_obj_align(s_fcMetricName[i], LV_ALIGN_TOP_MID, colX[i], 150);
+        lv_obj_set_style_text_align(s_fcMetricName[i], LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_align(s_fcMetricName[i], LV_ALIGN_TOP_MID, colX[i], fcMetNameY);
+
         s_fcMetricValue[i] = lv_label_create(wp);
         lv_obj_set_style_text_font(s_fcMetricValue[i], F16(), 0);
         lv_obj_set_style_text_color(s_fcMetricValue[i], UI_INK, 0);
-        lv_label_set_text(s_fcMetricValue[i], "-");
-        lv_obj_align(s_fcMetricValue[i], LV_ALIGN_TOP_MID, colX[i], 170);
+        lv_obj_set_style_text_align(s_fcMetricValue[i], LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_align(s_fcMetricValue[i], LV_ALIGN_TOP_MID, colX[i], fcMetValY);
 
         s_fcDay[i] = lv_label_create(wp);
         lv_obj_set_style_text_font(s_fcDay[i], F16(), 0);
         lv_obj_set_style_text_color(s_fcDay[i], UI_GREEN, 0);
-        lv_label_set_text(s_fcDay[i], "---");
-        lv_obj_align(s_fcDay[i], LV_ALIGN_TOP_MID, colX[i], 226);
+        lv_obj_set_style_text_align(s_fcDay[i], LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_align(s_fcDay[i], LV_ALIGN_TOP_MID, colX[i], fcDayY);
+
         s_fcDayCondition[i] = lv_label_create(wp);
-        lv_obj_set_width(s_fcDayCondition[i], 116);
+        lv_obj_set_width(s_fcDayCondition[i], fcCondW);
         lv_obj_set_style_text_font(s_fcDayCondition[i], F12(), 0);
         lv_obj_set_style_text_color(s_fcDayCondition[i], UI_SOFT, 0);
         lv_obj_set_style_text_align(s_fcDayCondition[i], LV_TEXT_ALIGN_CENTER, 0);
-        lv_label_set_long_mode(s_fcDayCondition[i], LV_LABEL_LONG_WRAP);
-        lv_label_set_text(s_fcDayCondition[i], "");
-        lv_obj_align(s_fcDayCondition[i], LV_ALIGN_TOP_MID, colX[i], 254);
+        lv_obj_align(s_fcDayCondition[i], LV_ALIGN_TOP_MID, colX[i], fcCondY);
+
         s_fcDayTemp[i] = lv_label_create(wp);
         lv_obj_set_style_text_font(s_fcDayTemp[i], F14(), 0);
         lv_obj_set_style_text_color(s_fcDayTemp[i], UI_INK, 0);
-        lv_label_set_text(s_fcDayTemp[i], "");
-        lv_obj_align(s_fcDayTemp[i], LV_ALIGN_TOP_MID, colX[i], 292);
+        lv_obj_set_style_text_align(s_fcDayTemp[i], LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_align(s_fcDayTemp[i], LV_ALIGN_TOP_MID, colX[i], fcTempY);
+
         s_fcDayRain[i] = lv_label_create(wp);
         lv_obj_set_style_text_font(s_fcDayRain[i], F12(), 0);
-        lv_obj_set_style_text_color(s_fcDayRain[i], lv_color_hex(0x4DDCFF), 0);
-        lv_label_set_text(s_fcDayRain[i], "");
-        lv_obj_align(s_fcDayRain[i], LV_ALIGN_TOP_MID, colX[i], 320);
+        lv_obj_set_style_text_color(s_fcDayRain[i], UI_DIM, 0);
+        lv_obj_set_style_text_align(s_fcDayRain[i], LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_align(s_fcDayRain[i], LV_ALIGN_TOP_MID, colX[i], fcRainY);
     }
+
     s_fcUpdated = lv_label_create(wp);
     lv_obj_set_style_text_font(s_fcUpdated, F12(), 0);
     lv_obj_set_style_text_color(s_fcUpdated, UI_DIM, 0);
-    lv_label_set_text(s_fcUpdated, "");
-    lv_obj_align(s_fcUpdated, LV_ALIGN_TOP_MID, 0, 365);
+    lv_obj_align(s_fcUpdated, LV_ALIGN_TOP_MID, 0, fcUpdY);
 
     s_weatherModeBtn = lv_btn_create(wp);
+#if defined(BOARD_SMARTRING_PLUS)
+    lv_obj_set_size(s_weatherModeBtn, 144, 30);
+    lv_obj_align(s_weatherModeBtn, LV_ALIGN_BOTTOM_MID, 0, -14);
+    lv_obj_set_style_radius(s_weatherModeBtn, 15, 0);
+#else
     lv_obj_set_size(s_weatherModeBtn, 164, 34);
     lv_obj_align(s_weatherModeBtn, LV_ALIGN_BOTTOM_MID, 0, -18);
     lv_obj_set_style_radius(s_weatherModeBtn, 17, 0);
+#endif
     lv_obj_set_style_bg_color(s_weatherModeBtn, UI_PANEL, 0);
+    lv_obj_set_style_bg_opa(s_weatherModeBtn, 220, 0);
     lv_obj_set_style_border_color(s_weatherModeBtn, UI_GREEN, 0);
+    lv_obj_set_style_border_opa(s_weatherModeBtn, 110, 0);
     lv_obj_set_style_border_width(s_weatherModeBtn, 1, 0);
-    lv_obj_clear_flag(s_weatherModeBtn, LV_OBJ_FLAG_SCROLL_CHAIN);
-    // Purely a label showing which mode comes next -- the panel handles the tap, so this
-    // must NOT be clickable or it would swallow presses that land on it.
-    lv_obj_clear_flag(s_weatherModeBtn, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_style_bg_color(s_weatherModeBtn, UI_GREEN, LV_STATE_PRESSED);
+    lv_obj_set_style_bg_opa(s_weatherModeBtn, 70, LV_STATE_PRESSED);
+    lv_obj_add_event_cb(s_weatherModeBtn, weather_mode_cb, LV_EVENT_CLICKED, NULL);
     s_weatherModeLbl = lv_label_create(s_weatherModeBtn);
+    lv_label_set_text(s_weatherModeLbl, "Forecast");
     lv_obj_set_style_text_font(s_weatherModeLbl, F12(), 0);
-    lv_obj_set_style_text_color(s_weatherModeLbl, UI_GREEN, 0);
-    lv_label_set_text(s_weatherModeLbl, "3-DAY FORECAST");
+    lv_obj_set_style_text_color(s_weatherModeLbl, UI_INK, 0);
+    lv_obj_center(s_weatherModeLbl);
     lv_obj_center(s_weatherModeLbl);
 
     lv_obj_set_tile_id(s_tv, 0, 0, LV_ANIM_OFF);

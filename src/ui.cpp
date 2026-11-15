@@ -218,9 +218,9 @@ static void refresh_card(void) {
     lv_obj_align(s_photo, LV_ALIGN_CENTER, 0, -28 - ph / 2);
 #endif
     lv_obj_clear_flag(s_photo, LV_OBJ_FLAG_HIDDEN);
-    if (credit[0]) {
+    if (pcred[0]) {
         char buf[80];
-        snprintf(buf, sizeof(buf), "Photo: %s", credit);
+        snprintf(buf, sizeof(buf), "Photo: %s", pcred);
         lv_label_set_text(s_photoCredit, buf);
         lv_obj_align_to(s_photoCredit, s_photo, LV_ALIGN_OUT_BOTTOM_MID, 0, 1);
         lv_obj_clear_flag(s_photoCredit, LV_OBJ_FLAG_HIDDEN);
@@ -229,7 +229,7 @@ static void refresh_card(void) {
     }
 } else {
     lv_obj_add_flag(s_photo, LV_OBJ_FLAG_HIDDEN);
-    if (photo_pending(ac->hex)) {
+    if (photo_pending(in.hex)) {
         lv_label_set_text(s_photoCredit, "Loading photo...");
 #if defined(BOARD_SMARTRING_PLUS)
         lv_obj_align(s_photoCredit, LV_ALIGN_CENTER, 0, -76);

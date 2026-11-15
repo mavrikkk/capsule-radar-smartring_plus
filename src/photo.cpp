@@ -7,8 +7,13 @@
 #include <esp_heap_caps.h>
 #endif
 
+#if defined(BOARD_SMARTRING_PLUS)
+#define PH_MAXW 180
+#define PH_MAXH 112
+#else
 #define PH_MAXW 232
 #define PH_MAXH 156
+#endif
 
 static std::mutex  s_m;
 static lv_color_t *s_buf = nullptr;

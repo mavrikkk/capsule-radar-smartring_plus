@@ -1,4 +1,5 @@
 #include "photo.h"
+#include "config.h"
 #include <mutex>
 #include <string.h>
 #include <stdio.h>

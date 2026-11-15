@@ -725,7 +725,6 @@ static void build_weather(void) {
             strncat(days, row, sizeof(days) - strlen(days) - 1);
         }
         lv_label_set_text(s_weatherDays, days);
-    }
 
     const uint16_t *radarPixels = nullptr, *cloudPixels = nullptr;
     uint32_t frameTime = 0, version = 0;

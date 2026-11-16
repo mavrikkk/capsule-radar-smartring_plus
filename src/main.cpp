@@ -83,6 +83,7 @@ static bool                  g_useGps = false;                       // auto-set
 static int                   g_trailLen = 2;                         // aircraft trails 0=off 1=short 2=med 3=long (web/NVS)
 static int                   g_maxAc = 20;                           // max aircraft drawn on the scope (web/NVS)
 static bool                  g_bigText = false;                      // accessibility: large fonts (web/NVS, applied at boot)
+static volatile bool         g_emulation = false;
 static volatile bool         g_onBattery = false;                    // discharging (set on core 1, read on core 0)
 static volatile bool         g_rtcSyncPending = false;               // SNTP synced: RTC should be rewritten on core 1
 static std::vector<Aircraft> g_snap;                                 // last snapshot (instant re-render on zoom)
@@ -126,6 +127,50 @@ static const struct { const char *label; const char *tz; int offMin; int dst; } 
     {"Auckland (NZ)",            "NZST-12NZDT,M9.5.0,M4.1.0/3",      720, 1},
 };
 static const int TZOPTS_N = sizeof(TZOPTS) / sizeof(TZOPTS[0]);
+
+static void generate_emulated_aircraft(std::vector<Aircraft> &out) {
+    out.clear();
+    const int count = 1 + (int)(esp_random() % 5);  // 1..5 aircraft
+    const char *types[] = { "B738", "A320", "E190", "B77W", "A359" };
+
+    const double homeLat = g_settings.homeLat;
+    const double homeLon = g_settings.homeLon;
+    double cosLat = cos(homeLat * (M_PI / 180.0));
+    if (fabs(cosLat) < 0.05) cosLat = 0.05;
+
+    const float maxR = g_settings.rangeKm * 0.90f;
+    const float minR = g_settings.rangeKm * 0.12f;
+    const uint32_t nowMs = millis();
+
+    for (int i = 0; i < count; ++i) {
+        Aircraft ac;
+        char hexBuf[8], callBuf[10];
+        const uint32_t rnd = esp_random();
+        snprintf(hexBuf, sizeof(hexBuf), "E%05lX", (unsigned long)(rnd & 0xFFFFF));
+        snprintf(callBuf, sizeof(callBuf), "EMU%03u", (unsigned)(100 + (rnd % 899)));
+        ac.hex = hexBuf;
+        ac.flight = callBuf;
+        ac.type = types[i % 5];
+
+        // Random polar coordinates inside the visible radar disc
+        const float u = (float)(esp_random() % 10000) / 10000.0f;
+        const float rKm = minR + sqrtf(u) * (maxR - minR);
+        const float brg = ((float)(esp_random() % 3600) / 10.0f) * ((float)M_PI / 180.0f);
+
+        ac.lat = homeLat + ((double)rKm * cos((double)brg)) / 111.32;
+        ac.lon = homeLon + ((double)rKm * sin((double)brg)) / (111.32 * cosLat);
+        ac.altBaro = (float)(1500 + (int)(esp_random() % 36000));
+        ac.onGround = false;
+        ac.track = (float)(esp_random() % 360);
+        ac.gs = (float)(180 + (int)(esp_random() % 310));
+        ac.baroRate = 0.0f;
+        ac.squawk = 2000 + (int)(esp_random() % 5000);
+        ac.seenPos = 0;
+        ac.military = (i == 0 && (esp_random() % 4 == 0));
+        ac.lastUpdateMs = nowMs;
+        out.push_back(ac);
+    }
+}
 
 // ---- networking task (core 0): fetch + parse, never touches the display ----
 static void adsb_task(void*) {
@@ -184,6 +229,24 @@ static void adsb_task(void*) {
             g_adsb.begin(g_settings.homeLat, g_settings.homeLon, g_requeryKm);
             g_requery = false;
             lastPoll = 0;                         // poll immediately at the new radius
+        }
+        if (g_emulation) {
+            const uint32_t nowMs = millis();
+            const uint32_t pollInterval = g_onBattery ? POLL_INTERVAL_BATTERY_MS : POLL_INTERVAL_MS;
+            if (lastPoll == 0 || nowMs - lastPoll >= pollInterval) {
+                lastPoll = nowMs;
+                generate_emulated_aircraft(fresh);
+                g_feedOk = true;
+                g_lastFeedOkMs = nowMs;
+                watchdog.onPoll(FeedWatchdog::FETCHED, nowMs);
+                if (xSemaphoreTake(g_ac_mutex, pdMS_TO_TICKS(200)) == pdTRUE) {
+                    g_aircraft.swap(fresh);
+                    g_acDirty = true;
+                    xSemaphoreGive(g_ac_mutex);
+                }
+            }
+            vTaskDelay(pdMS_TO_TICKS(200));
+            continue;
         }
         if (conn) {
             // The live aircraft feed is the primary job, so poll FIRST every cycle. That keeps
@@ -321,6 +384,7 @@ static void loadSettings() {
     g_tempUnit         = p.getInt("tempu", 0);
     g_tz               = p.getString("tz", TZ_STR);
     g_bigText          = p.getBool("bigtext", false);
+    g_emulation        = p.getBool("emulation", false);
     p.end();
     // fonts are baked into the widgets at creation time, so the large-text flag must be
     // in place before display::begin() builds the UI (loadSettings runs first in setup)
@@ -756,6 +820,7 @@ static void handleRoot() {
         "<label>Aircraft trails</label><select onchange='tl(this.value)'>%s</select>"
         "<label>Max aircraft on screen</label><select onchange='mx(this.value)'>%s</select>"
         "<label><input type=checkbox class=ck %s onchange='bt(this.checked)'>Large text (restarts the device)</label>"
+        "<label><input type=checkbox class=ck %s onchange='em(this.checked)'>Emulation (1-5 random aircraft)</label>"
         "<label>Screen rotation (degrees clockwise)</label>"
         "<input type=number min=0 max=359 step=1 value='%d' onchange='ro(this.value)'>"
         "<label>Units</label><select onchange='u(this.value)'>%s</select>"
@@ -803,6 +868,7 @@ static void handleRoot() {
         "function tl(v){G('/trail?v='+v+'&save=1')}"
         "function mx(v){G('/maxac?v='+v+'&save=1')}"
         "function bt(c){G('/bigtext?v='+(c?1:0)+'&save=1')}"
+        "function em(c){G('/emulation?v='+(c?1:0)+'&save=1')}"
         "function ro(v){G('/rotate?v='+v+'&save=1')}"
         "function u(v){G('/units?v='+v+'&save=1')}"
         "function tu(v){G('/tempu?v='+v+'&save=1')}"
@@ -822,7 +888,7 @@ static void handleRoot() {
         tzopts.c_str(),
         g_brightnessDay, iopts.c_str(), g_clockOn ? "checked" : "", g_fdSleep ? "checked" : "", g_showSweep ? "checked" : "",
         g_showAirports ? "checked" : "", g_hideGround ? "checked" : "", maopts.c_str(), mbopts.c_str(), g_milOnly ? "checked" : "",
-        tlopts.c_str(), mxopts.c_str(), g_bigText ? "checked" : "", g_rotation, uopts.c_str(), tuopts.c_str(),
+        tlopts.c_str(), mxopts.c_str(), g_bigText ? "checked" : "", g_emulation ? "checked" : "", g_rotation, uopts.c_str(), tuopts.c_str(),
         g_volume, g_muted ? "checked" : "", aopts.c_str(), popts.c_str(),
         g_settings.homeLat, g_settings.homeLon, (g_tz == TZ_STR ? 0 : 1));
     if (len >= (int)BUFSZ)   // truncated page = broken <script>; make it loud, not silent
@@ -1098,6 +1164,20 @@ static void handleBigText() {   // accessibility: large fonts. Fonts are baked a
         p.putBool("bigtext", g_bigText);
         p.end();
         g_rebootAtMs = millis() + 1200;   // let this response reach the browser first
+    }
+    g_web.send(200, "text/plain", "ok");
+}
+
+static void handleEmulation() {
+    if (refuseUnlessPageFetch()) return;
+    if (g_web.hasArg("v")) {
+        g_emulation = g_web.arg("v").toInt() != 0;
+        if (g_web.hasArg("save")) {
+            Preferences p;
+            p.begin("capsuleradar", false);
+            p.putBool("emulation", g_emulation);
+            p.end();
+        }
     }
     g_web.send(200, "text/plain", "ok");
 }
@@ -1432,6 +1512,7 @@ void setup() {
     g_web.on("/trail", handleTrail);
     g_web.on("/maxac", handleMaxAc);
     g_web.on("/bigtext", handleBigText);
+    g_web.on("/emulation", handleEmulation);
     g_web.on("/rotate", handleRotate);
     g_web.on("/poweroff", HTTP_POST, []() {
         if (refuseIfCrossSite()) return;

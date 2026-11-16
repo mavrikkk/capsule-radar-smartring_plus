@@ -645,19 +645,32 @@ static void build_stats(void) {
 
 static void build_weather(void) {
     if (!s_weatherNow || !s_weatherMeta || !s_weatherDays || !s_wxFooter) return;
+
     WeatherSnapshot w;
-    if (!weather_get(w)) {
+    const bool haveWeather = weather_get(w);
+    if (!haveWeather) {
         lv_label_set_text(s_weatherNow, "Forecast unavailable");
         lv_label_set_text(s_weatherMeta, "Waiting for WiFi data...");
         lv_label_set_text(s_wxFooter, "WEATHER DATA PENDING");
+        lv_label_set_text(s_wxMeta, "");
         lv_label_set_text(s_weatherDays, "");
+        lv_label_set_text(s_fcCurrent, "--");
+        lv_label_set_text(s_fcCondition, "WEATHER DATA PENDING");
+        lv_label_set_text(s_fcUpdated, "");
+        for (int col = 0; col < 3; ++col) {
+            lv_label_set_text(s_fcMetricValue[col], "--");
+            lv_label_set_text(s_fcDay[col], "-");
+            lv_label_set_text(s_fcDayCondition[col], "");
+            lv_label_set_text(s_fcDayTemp[col], "");
+            lv_label_set_text(s_fcDayRain[col], "");
+        }
     } else {
         char now[96];
         snprintf(now, sizeof(now), "%.0f %s\n%s", weather_temp(w.tempC),
                  weather_temp_unit(), weather_condition(w.code));
         lv_label_set_text(s_weatherNow, now);
         char meta[128];
-        snprintf(meta, sizeof(meta), "Feels %.0f %s   Humidity %d%%\nWind %.0f %s  %s   Updated %s",
+        snprintf(meta, sizeof(meta), "Feels %.0f %s   Humidity %d%%\nWind %.0f %s   %s   Updated %s",
                  weather_temp(w.feelsC), weather_temp_unit(), w.humidity,
                  weather_wind(w.windKmh), weather_wind_unit(), cardinal((float)w.windDeg), w.updated);
         lv_label_set_text(s_weatherMeta, meta);
@@ -713,6 +726,7 @@ static void build_weather(void) {
             strncat(days, row, sizeof(days) - strlen(days) - 1);
         }
         lv_label_set_text(s_weatherDays, days);
+    }
 
     const uint16_t *radarPixels = nullptr, *cloudPixels = nullptr;
     uint32_t frameTime = 0, version = 0;
@@ -733,7 +747,7 @@ static void build_weather(void) {
         char iata[4]; float d = 0, b = 0;
         if (airports_nearest_iata(rlat, rlon, 200.0f, iata, &d, &b)) {
             char apt[64];
-            snprintf(apt, sizeof(apt), "O  %s   %.0f %s %s", iata, dist_val(d), dist_unit(), cardinal(b));
+            snprintf(apt, sizeof(apt), "0  %s   %.0f %s %s", iata, dist_val(d), dist_unit(), cardinal(b));
             lv_label_set_text(s_wxAirport, apt);
         } else lv_label_set_text(s_wxAirport, "RADAR CENTRE");
         char stamp[6] = "--:--";
@@ -759,8 +773,8 @@ static void build_weather(void) {
         s_fcDayRain[0], s_fcDayRain[1], s_fcDayRain[2]
     };
     lv_obj_t *radarObjs[] = { s_wxCanvas, s_wxStatus, s_wxAirport, s_wxFooter, s_wxMeta,
-                              s_wxAttrib, s_wxNorth, s_wxCenter, s_wxRange,
-                              s_wxRings[0], s_wxRings[1], s_wxRings[2] };
+                             s_wxAttrib, s_wxNorth, s_wxCenter, s_wxRange,
+                             s_wxRings[0], s_wxRings[1], s_wxRings[2] };
     for (lv_obj_t *o : forecastObjs) if (o) {
         if (forecastMode) lv_obj_clear_flag(o, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
     }
@@ -776,7 +790,6 @@ static void build_weather(void) {
     if (s_weatherTitle) lv_label_set_text(s_weatherTitle,
         s_weatherMode == WEATHER_RADAR ? "WX RADAR" :
         s_weatherMode == WEATHER_CLOUDS ? "SAT CLOUDS" : "WEATHER");
-}
 }
 // Registered once, on the whole weather panel (see ui_create) -- the mode pill and the
 // image are deliberately non-clickable so every tap funnels here. The debounce swallows
